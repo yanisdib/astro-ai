@@ -1,0 +1,74 @@
+
+# Ignore node_modules and build artifacts 
+.cache
+.DS_Store
+node_modules/
+dist/
+build/
+*.log
+
+# Local env files
+.env
+.env.*
+
+# Python virtual environments
+venv/
+env/
+.venv/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+build/
+dist/
+eggs/
+.eggs/
+*.egg-info/
+*.egg
+pip-wheel-metadata/
+wheelhouse/
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+.tox/
+.coverage
+.coverage.*
+.pytest_cache/
+htmlcov/
+coverage.xml
+nose2-junit.xml
+nose2.xml
+
+# Pytest cache
+.pytest_cache/
+
+# mypy
+.mypy_cache/
+
+# Pyre type checker
+.pyre/
+
+# Ruff cache
+.ruff_cache/
+
+# Virtual environment created by Poetry
+.venv/
+
+# VS Code
+.vscode/
+
+# macOS
+.DS_Store
+
+# Local env files
+.env
+.env.*

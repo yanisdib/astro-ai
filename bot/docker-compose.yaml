@@ -1,0 +1,82 @@
+version: "3.8"
+
+services:
+  # Astro - Bot (development-friendly service)
+  astrobot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: astrobot/astro:latest
+    container_name: astrobot
+    volumes:
+      - ..:/workspaces/astrobot:cached
+    env_file: .env
+    environment:
+      PYTHONUNBUFFERED: "1"
+    depends_on:
+      - supabase
+      - redis
+    restart: unless-stopped
+    networks:
+      - astrobot_net
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Supabase Server
+  supabase:
+    image: supabase/supabase:latest
+    container_name: astrobot-supabase
+    volumes:
+      - supabase_data:/var/lib/supabase
+    ports:
+      - "8000:8000"
+    environment:
+      IS_PERSISTENT: "TRUE"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - astrobot_net
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    container_name: astrobot-redis
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - astrobot_net
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  supabase_data:
+  redis_data:
+
+networks:
+  astrobot_net:
+    driver: bridge

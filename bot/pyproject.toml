@@ -1,0 +1,48 @@
+[tool.poetry]
+name = "astrobot"
+version = "0.1.0"
+description = "AI-powered Stream Chat Assistant"
+authors = ["Your Name <you@example.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.13"
+openai = "^2.14.0"
+chromadb = "^1.4.0"
+langchain = "^1.2.0"
+redis = "^7.1.0"
+python-dotenv = "^1.2.1"
+tiktoken = "^0.12.0"
+fastapi = "^0.128.0"
+uvicorn = "^0.40.0"
+twitchio = "^2.8.2"
+uuid6 = "^2025.0.1"
+
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^9.0.2"
+pytest-asyncio = "^1.3.0"
+pytest-cov = "^7.0.0"
+ruff = "^0.21.0"
+black = "^24.4.0"
+isort = "^5.12.0"
+pre-commit = "^4.4.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+
+[tool.ruff]
+line-length = 88
+select = ["E", "F", "W", "C", "N", "I"]
+extend-select = ["N"]
+ignore = ["E203"]
+
+[tool.black]
+line-length = 88
+target-version = ['py310']
+
+[tool.isort]
+profile = "black"
+line_length = 88
