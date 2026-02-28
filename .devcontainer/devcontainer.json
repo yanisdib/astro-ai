@@ -11,10 +11,11 @@
       "userUid": "automatic",
       "userGid": "automatic",
       "installZsh": false
-    }
+    },
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
   },
   "remoteUser": "vscode",
-  "runArgs": ["--name", "astro-dev-container", "-p", "6000:6000"],
+  "runArgs": ["--name", "astro-dev-container", "-p", "6000:6000", "--init"],
   "customizations": {
     "vscode": {
       "extensions": [
@@ -28,7 +29,6 @@
         "redhat.vscode-yaml",
         "ms-azuretools.vscode-docker",
         "esbenp.prettier-vscode",
-        "beardedbear.beardedicons",
         "lucafalasco.matcha",
         "Anthropic.claude-code",
         "eamodio.gitlens",
@@ -49,10 +49,12 @@
         "formulahendry.auto-close-tag",
         "bierner.color-info",
         "ms-vscode-remote.remote-containers",
-        "usernamehw.errorlens"
+        "usernamehw.errorlens",
+        "docker.docker",
+        "Redis.redis-for-vscode"
       ],
       "settings": {
-        "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+        "python.defaultInterpreterPath": "/workspaces/astro-ai/bot/.venv/bin/python",
         "python.analysis.typeCheckingMode": "basic",
         "python.formatting.provider": "black",
         "python.terminal.activateEnvironment": false

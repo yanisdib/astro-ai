@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-cd /workspaces/astro-ai
+# Configure Astro Bot environment and dependencies
+cd /workspaces/astro-ai/bot
 
 sudo chown -R $(whoami):$(whoami) .
 
@@ -35,7 +36,7 @@ if [ ! -f "pyproject.toml" ]; then
     python3 -m pip install pydantic-core pydantic
   fi
   
-  poetry add twitchio uuid6 openai supabase psycopg[binary] pgvector langchain redis python-dotenv tiktoken fastapi uvicorn
+  poetry add twitchio==3.2.1 python-dotenv==1.0.1 openai==2.21.0 supabase==2.28.0 pgvector==0.4.2 langchain==1.2.10 "psycopg[binary,pool]==3.3.3" tiktoken==0.12.0 fastapi==0.129.1 uvicorn==0.41.0 redis==7.1.1 uuid6==2025.0.1
 fi
 
 echo "[post-create] Syncing dependencies..."
@@ -44,4 +45,4 @@ poetry install --no-interaction
 echo "[post-create] Environment Check:"
 poetry env info
 
-echo "[post-create] Done. Your environment is ready. Happy coding! 🚀 "
+echo "[post-create] Done. Your environment is ready. "

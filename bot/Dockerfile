@@ -31,8 +31,5 @@ COPY src/ ./src/
 COPY ./env/.env.dev ./env
 
 # Ensure the app runs as a non-root user for security
-RUN useradd -m makouser
-USER makouser
-
-# Default command to run the listener (can be overridden)
-CMD ["python", "src/listener/twitch_ws.py"]
+RUN useradd -m astro
+USER astro

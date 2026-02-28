@@ -1,0 +1,46 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Astro AI - Infrastructure
+# Shared infrastructure — Postgres (pgvector) + Supabase Realtime
+# All services in the monorepo connect to this via the `nerv` network.
+#
+# Usage:
+#   docker compose -f infra/docker-compose.yaml up -d
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  # ─── Postgres + pgvector ───────────────────────────────────────────────────
+  # supabase/postgres ships with pgvector pre-installed.
+  # Enable it per-database: CREATE EXTENSION IF NOT EXISTS vector;
+  unit-01:
+    image: supabase/postgres:15.8.1.060
+    container_name: astro-pgdb
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      JWT_SECRET: ${JWT_SECRET}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./init:/docker-entrypoint-initdb.d:ro # SQL init scripts (e.g. enable vector extension)
+    env_file:
+      - ../env/.env.dev
+    networks:
+      - nerv
+
+volumes:
+  db_data:
+
+networks:
+  # External network — all services across the monorepo attach to this
+  nerv:
+    name: nerv
+    driver: bridge
