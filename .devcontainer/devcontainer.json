@@ -43,7 +43,13 @@
         "visualstudioexptteam.intellicode-api-usage-examples",
         "ms-vscode.makefile-tools",
         "donjayamanne.python-extension-pack",
-        "kevinrose.vsc-python-indent"
+        "kevinrose.vsc-python-indent",
+        "ms-azuretools.vscode-containers",
+        "formulahendry.auto-rename-tag",
+        "formulahendry.auto-close-tag",
+        "bierner.color-info",
+        "ms-vscode-remote.remote-containers",
+        "usernamehw.errorlens"
       ],
       "settings": {
         "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
@@ -56,8 +62,12 @@
   "containerEnv": {
     "PIP_NO_CACHE_DIR": "1",
     "POETRY_VIRTUALENVS_CREATE": "false",
-    "PYTHONDONTWRITEBYTECODE": "1"
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "CLAUDE_API_KEY_STORE": "file"
   },
+  "mounts": [
+    "source=${localEnv:HOME}/.claude,target=/home/vscode/.claude,type=bind"
+  ],
   "forwardPorts": [6000],
   "shutdownAction": "stopContainer"
 }
