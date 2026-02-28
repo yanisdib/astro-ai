@@ -1,72 +1,89 @@
-version: "3.8"
+# ─────────────────────────────────────────────────────────────────────────────
+# Astro Bot
+# Bot service stack — astrobot + Redis + Supabase Realtime
+# Connects to shared Postgres via the `nerv` external network.
+#
+# Prerequisites:
+#   docker compose -f infra/docker-compose.yaml up -d
+#
+# Usage:
+#   docker compose -f bot/docker-compose.yaml up -d --build
+# ─────────────────────────────────────────────────────────────────────────────
 
 services:
-  # Astro - Bot (development-friendly service)
+  # ─── Supabase Realtime ─────────────────────────────────────────────────────
+  # Listens to Postgres WAL and broadcasts changes over WebSocket.
+  # Your bot subscribes to embedding/message table changes in real time.
+  realtime:
+    image: supabase/realtime:v2.33.47
+    container_name: astro-realtime
+    restart: unless-stopped
+    environment:
+      PORT: 4000
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: ${POSTGRES_DB}
+      DB_AFTER_CONNECT_QUERY: "SET search_path TO _realtime"
+      DB_ENC_KEY: supabaserealtime
+      API_JWT_SECRET: ${JWT_SECRET}
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE}
+      ERL_AFLAGS: -proto_dist inet_tcp
+      DNS_NODES: "''"
+      RLIMIT_NOFILE: "10000"
+      APP_NAME: realtime
+      SEED_SELF_HOST: "true"
+    env_file:
+      - ./env/.env.dev
+    networks:
+      - nerv
+      - bot_net
+
+  # ─── Redis ─────────────────────────────────────────────────────────────────
+  # Message buffer for Twitch chat ingestion pipeline.
+  redis:
+    image: redis:7-alpine
+    container_name: astro-redis
+    restart: unless-stopped
+    command: redis-server /usr/local/etc/redis/redis.conf
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "redis-dev", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - redis_data:/data
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    env_file:
+      - ./env/.env.dev
+    networks:
+      - bot_net
+
+  # ─── Astrobot ──────────────────────────────────────────────────────────────
   astrobot:
     build:
       context: .
       dockerfile: Dockerfile
     image: astrobot/astro:latest
     container_name: astrobot
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
     volumes:
       - ..:/workspaces/astrobot:cached
-    env_file: .env
+    env_file:
+      - ./env/.env.dev
     environment:
       PYTHONUNBUFFERED: "1"
-    depends_on:
-      - supabase
-      - redis
-    restart: unless-stopped
-    networks:
-      - astrobot_net
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-  # Supabase Server
-  supabase:
-    image: supabase/supabase:latest
-    container_name: astrobot-supabase
-    volumes:
-      - supabase_data:/var/lib/supabase
     ports:
-      - "8000:8000"
-    environment:
-      IS_PERSISTENT: "TRUE"
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/ || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
-    restart: unless-stopped
+      - "6100:6100"
     networks:
-      - astrobot_net
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-  # Redis
-  redis:
-    image: redis:7-alpine
-    container_name: astrobot-redis
-    volumes:
-      - redis_data:/data
-    ports:
-      - "6379:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 10s
-    restart: unless-stopped
-    networks:
-      - astrobot_net
+      - nerv
+      - bot_net
     logging:
       driver: json-file
       options:
@@ -74,9 +91,11 @@ services:
         max-file: "3"
 
 volumes:
-  supabase_data:
   redis_data:
 
 networks:
-  astrobot_net:
+  bot_net:
+    name: bot_net
     driver: bridge
+  nerv:
+    external: true

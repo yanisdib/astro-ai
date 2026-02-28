@@ -1,4 +1,3 @@
-# Use a slim Python image for the build stage
 FROM python:3.13-slim AS builder
 
 WORKDIR /app
@@ -19,7 +18,6 @@ COPY pyproject.toml poetry.lock ./
 RUN poetry config virtualenvs.create false \
     && poetry install --no-root --no-interaction --no-ansi
 
-# Final Stage
 FROM python:3.13-slim
 
 WORKDIR /app
@@ -30,7 +28,7 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Copy source code
 COPY src/ ./src/
-COPY .env ./
+COPY ./env/.env.dev ./env
 
 # Ensure the app runs as a non-root user for security
 RUN useradd -m makouser
