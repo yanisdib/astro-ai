@@ -20,7 +20,7 @@ services:
     restart: unless-stopped
     environment:
       PORT: 4000
-      DB_HOST: db
+      DB_HOST: astrodb
       DB_PORT: 5432
       DB_USER: ${POSTGRES_USER}
       DB_PASSWORD: ${POSTGRES_PASSWORD}
