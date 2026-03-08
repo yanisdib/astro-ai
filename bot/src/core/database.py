@@ -28,11 +28,9 @@ logger = logging.getLogger(__name__)
 
 # Build the connection string
 conninfo = (
-    f"postgresql://{os.getenv('POSTGRES_USER')}"
-    f"{os.getenv('POSTGRES_PASSWORD')}"
-    f"{os.getenv('DB_HOST', 'astrodb')}"
-    f"{os.getenv('DB_PORT', '5432')}"
-    f"{os.getenv('POSTGRES_DB')}"
+    f"postgresql://{os.getenv('POSTGRES_USER')}:{os.getenv('POSTGRES_PASSWORD')}"
+    f"@{os.getenv('POSTGRES_HOST', 'astrodb')}:{os.getenv('POSTGRES_PORT', '5432')}"
+    f"/{os.getenv('POSTGRES_DB')}"
 )
 
 # The global pool — one instance for the whole bot

@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(PYTHON=\"/Users/yanisdib/Documents/Workspace/ai/astro-ai/bot/.venv/lib/python3.13\")",
+      "Bash(python3.13 --version)",
+      "Bash(pyenv local 3.13)",
+      "Read(//Users/yanisdib/.pyenv/versions/**)",
+      "Bash($PYBIN:*)",
+      "Bash(/Users/yanisdib/.pyenv/versions/3.13.5/bin/python3.13:*)",
+      "Bash(python3.13:*)",
+      "Bash(PYTHONPATH=/Users/yanisdib/Documents/Workspace/ai/astro-ai python3.13:*)",
+      "Bash(ls:*)",
+      "Bash(PYTHONPATH=/Users/yanisdib/Documents/Workspace/ai/astro-ai/bot/src python3.13:*)"
+    ]
+  }
+}

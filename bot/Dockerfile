@@ -28,7 +28,6 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Copy source code
 COPY src/ ./src/
-COPY ./env/.env.dev ./env
 
 # Ensure the app runs as a non-root user for security
 RUN useradd -m astro

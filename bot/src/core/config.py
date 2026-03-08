@@ -23,8 +23,8 @@ class Config:
     # Data Storage Configuration
     POSTGRES_USER = os.getenv("POSTGRES_USER")
     POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD")
-    POSTGRES_HOST = os.getenv("DB_HOST", "astrodb")
-    POSTGRES_PORT = os.getenv("DB_PORT", "5432")
+    POSTGRES_HOST = os.getenv("POSTGRES_HOST", "astrodb")
+    POSTGRES_PORT = os.getenv("POSTGRES_PORT", "5432")
     POSTGRES_DATABASE = os.getenv("POSTGRES_DB")
     # Twitch Configuration
     TWITCH_TOKEN: str = os.getenv("TWITCH_TOKEN", "")
@@ -38,7 +38,7 @@ class Config:
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
     # Memory Buffer Configuration
     BATCH_SIZE = int(os.getenv("BATCH_SIZE", 10))  # Limit of messages by batch
-    FLUSH_INTERVAL = int(os.getenv("FLUSH_INTERVAL", 30))  # Interval between flush
+    FLUSH_INTERVAL = int(os.getenv("FLUSH_INTERVAL", 60))  # Interval between flush
     # OpenAI Configuration
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
     EMBEDDING_MODEL: str = "text-embedding-3-small"

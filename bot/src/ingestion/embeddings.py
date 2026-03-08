@@ -1,7 +1,7 @@
 import logging
 
 from openai import OpenAI
-from bot.src.core.config import config
+from core.config import config
 
 
 logger = logging.getLogger(__name__)

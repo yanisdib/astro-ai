@@ -1,3 +1,0 @@
-# Mako - Tech Stack
-
-## Domains

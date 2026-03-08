@@ -2,16 +2,14 @@ import logging
 import asyncio
 import time
 
-from bot.src.ingestion.queries import INSERT_DOCUMENT
-from bot.src.models.chat_message import ChatMessage
-from bot.src.core.database import pool
-from bot.src.ingestion.embeddings import EmbeddingService
+from queries import INSERT_DOCUMENT
+from models.chat_message import ChatMessage
+from core.database import pool
+from core.config import config
+from embeddings import EmbeddingService
 
 
 logger = logging.getLogger(__name__)
-
-FLUSH_INTERVAL: int = 120  # seconds
-BATCH_LIMIT: int = 10
 
 
 class MessageBuffer:
@@ -20,11 +18,14 @@ class MessageBuffer:
         self._active_message_queue: list[ChatMessage] = []
         self._commit_message_queue: list[ChatMessage] = []
         self._swapped_at: int = int(time.time())
-        self._flush_task = asyncio.create_task(self._periodic_flush())
         self._lock = asyncio.Lock()
         self._is_listening = True
+        self._flush_task
 
-    def assess_relevance(self) -> None:
+    async def start(self):
+        self._flush_task = asyncio.create_task(self._periodic_flush())
+
+    def _assess_relevance(self) -> None:
         # to implement later
         raise NotImplementedError
 
@@ -33,7 +34,7 @@ class MessageBuffer:
         Enqueues a Twitch chat message for embedding and storage.
 
         Appends the message to the active queue under a lock. If the queue
-        reaches BATCH_LIMIT, a flush is triggered immediately to embed and
+        reaches config.BATCH_LIMIT, a flush is triggered immediately to embed and
         persist the accumulated batch.
 
         Args:
@@ -48,20 +49,20 @@ class MessageBuffer:
                 await self._flush()
 
     def _is_active_queue_full(self) -> bool:
-        """Returns True if the active queue has reached or exceeded BATCH_LIMIT."""
-        return len(self._active_message_queue) >= BATCH_LIMIT
+        """Returns True if the active queue has reached or exceeded config.BATCH_LIMIT."""
+        return len(self._active_message_queue) >= config.BATCH_LIMIT
 
-    async def _periodic_flush(self, interval=FLUSH_INTERVAL) -> None:
+    async def _periodic_flush(self, interval=config.FLUSH_INTERVAL) -> None:
         """
         Background task that flushes the active queue on a fixed time interval.
 
         Runs continuously while _is_listening is True, sleeping for `interval`
         seconds between flushes. This ensures messages are persisted even when
-        chat volume is low and BATCH_LIMIT is never reached. Cancelled cleanly
+        chat volume is low and config.BATCH_LIMIT is never reached. Cancelled cleanly
         by stop().
 
         Args:
-            interval (int): Seconds between automatic flushes. Defaults to FLUSH_INTERVAL.
+            interval (int): Seconds between automatic flushes. Defaults to config.FLUSH_INTERVAL.
         """
         while self._is_listening:
             try:
