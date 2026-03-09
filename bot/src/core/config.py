@@ -27,13 +27,10 @@ class Config:
     POSTGRES_PORT = os.getenv("POSTGRES_PORT", "5432")
     POSTGRES_DATABASE = os.getenv("POSTGRES_DB")
     # Twitch Configuration
-    TWITCH_TOKEN: str = os.getenv("TWITCH_TOKEN", "")
-    TWITCH_ACCESS_TOKEN: str = os.getenv("TWITCH_ACCESS_TOKEN", "")
-    TWITCH_REFRESH_TOKEN: str = os.getenv("TWITCH_REFRESH_TOKEN", "")
+    TWITCH_BOT_ID: str = os.getenv("TWITCH_BOT_ID", "")
     TWITCH_CHANNEL: str = os.getenv("TWITCH_CHANNEL", "")
     TWITCH_CLIENT_ID: str = os.getenv("TWITCH_CLIENT_ID", "")
     TWITCH_CLIENT_SECRET: str = os.getenv("TWITCH_CLIENT_SECRET", "")
-    TWITCH_CLIENT_CODE: str = os.getenv("TWITCH_CLIENT_CODE", "")
     # Logging Configuration
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
     # Memory Buffer Configuration
@@ -50,7 +47,7 @@ class Config:
         Returns:
             bool: Returns True if the configuration is complete, otherwise False.
         """
-        required_vars = ["TWITCH_TOKEN", "TWITCH_CHANNEL", "OPENAI_API_KEY"]
+        required_vars = ["TWITCH_BOT_ID", "TWITCH_CLIENT_ID", "TWITCH_CHANNEL", "OPENAI_API_KEY"]
 
         missing = [var for var in required_vars if not getattr(cls, var)]
         if missing:

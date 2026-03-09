@@ -34,7 +34,7 @@ class MessageBuffer:
         Enqueues a Twitch chat message for embedding and storage.
 
         Appends the message to the active queue under a lock. If the queue
-        reaches config.BATCH_LIMIT, a flush is triggered immediately to embed and
+        reaches config.config.BATCH_SIZE, a flush is triggered immediately to embed and
         persist the accumulated batch.
 
         Args:
@@ -49,8 +49,8 @@ class MessageBuffer:
                 await self._flush()
 
     def _is_active_queue_full(self) -> bool:
-        """Returns True if the active queue has reached or exceeded config.BATCH_LIMIT."""
-        return len(self._active_message_queue) >= config.BATCH_LIMIT
+        """Returns True if the active queue has reached or exceeded config.config.BATCH_SIZE."""
+        return len(self._active_message_queue) >= config.BATCH_SIZE
 
     async def _periodic_flush(self, interval=config.FLUSH_INTERVAL) -> None:
         """
@@ -58,7 +58,7 @@ class MessageBuffer:
 
         Runs continuously while _is_listening is True, sleeping for `interval`
         seconds between flushes. This ensures messages are persisted even when
-        chat volume is low and config.BATCH_LIMIT is never reached. Cancelled cleanly
+        chat volume is low and config.BATCH_SIZE is never reached. Cancelled cleanly
         by stop().
 
         Args:

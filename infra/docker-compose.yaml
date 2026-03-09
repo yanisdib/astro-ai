@@ -4,15 +4,16 @@
 # All services in the monorepo connect to this via the `nerv` network.
 #
 # Usage:
-#   docker compose -f infra/docker-compose.yaml up -d
+#   make infra-up [ENV=dev]
+#   docker compose -f infra/docker-compose.yaml --env-file env/.env.<ENV> up -d
 # ─────────────────────────────────────────────────────────────────────────────
 
 services:
   # ─── Postgres + pgvector ───────────────────────────────────────────────────
-  # supabase/postgres ships with pgvector pre-installed.
-  # Enable it per-database: CREATE EXTENSION IF NOT EXISTS vector;
+  # pgvector/pgvector is a standard Postgres 15 image with pgvector built in.
+  # `make infra-up` enables the extension via docker exec after startup.
   unit-01:
-    image: supabase/postgres:15.8.1.060
+    image: pgvector/pgvector:pg15
     container_name: astro-pgdb
     restart: unless-stopped
     healthcheck:
@@ -27,10 +28,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
-      JWT_SECRET: ${JWT_SECRET}
     volumes:
       - db_data:/var/lib/postgresql/data
-      - ./init:/docker-entrypoint-initdb.d:ro # SQL init scripts (e.g. enable vector extension)
     env_file:
       - ../env/.env.dev
     networks:
