@@ -2,7 +2,6 @@ import logging
 import asyncio
 import time
 
-from openai import AsyncOpenAI
 from queries import INSERT_DOCUMENT
 from models.chat_message import ChatMessage
 from core.database import pool
@@ -22,12 +21,13 @@ class MessageBuffer:
         self._swapped_at: int = int(time.time())
         self._lock = asyncio.Lock()
         self._is_listening = True
-        self._flush_task
+        self._flush_task: asyncio.Task | None = None
+        self._moderation_semaphore = asyncio.Semaphore(settings.BATCH_SIZE)
 
     async def start(self):
         self._flush_task = asyncio.create_task(self._periodic_flush())
 
-    async def _is_moderation_valid(self, text: str) -> bool:
+    async def _is_appropriate_message(self, text: str) -> bool:
         """
         Ensures that a message is not inapproriate using OpenAI's moderation endpoint
 
@@ -45,14 +45,23 @@ class MessageBuffer:
         Enqueues a Twitch chat message for embedding and storage.
 
         Appends the message to the active queue under a lock. If the queue
-        reaches settings.settings.BATCH_SIZE, a flush is triggered immediately to embed and
+        reaches settings.BATCH_SIZE, a flush is triggered immediately to embed and
         persist the accumulated batch.
 
         Args:
             message (ChatMessage): The incoming Twitch chat message to buffer.
         """
         if not message:
+            logger.debug("Cannot proceed with nonexistent message")
             return
+
+        async with self._moderation_semaphore:
+            is_appropriate = await self._is_appropriate_message(message.content)
+            if not is_appropriate:
+                logger.info(
+                    f"Message {message.id} from user {message.user_id} contains inappropriate content."
+                )
+                return
 
         async with self._lock:
             self._active_message_queue.append(message)
@@ -60,7 +69,7 @@ class MessageBuffer:
                 await self._flush()
 
     def _is_active_queue_full(self) -> bool:
-        """Returns True if the active queue has reached or exceeded settings.settings.BATCH_SIZE."""
+        """Returns True if the active queue has reached or exceeded settings.BATCH_SIZE."""
         return len(self._active_message_queue) >= settings.BATCH_SIZE
 
     async def _periodic_flush(self, interval=settings.FLUSH_INTERVAL) -> None:
@@ -143,7 +152,7 @@ class MessageBuffer:
         finally:
             self._commit_message_queue = []
 
-    async def _store_batch(self, documents: list[dict]) -> bool:
+    async def _store_batch(self, documents: list[dict]) -> None:
         """
         Persists a batch of embedded Twitch chat messages to the documents table for RAG retrieval.
 
@@ -158,9 +167,6 @@ class MessageBuffer:
                 - channel_id (str): Twitch channel the message originated from.
                 - source_type (str): Origin platform identifier (e.g. "twitch").
                 - created_at (int): Unix timestamp of the original message.
-
-        Returns:
-            bool: True if the batch was stored successfully, False otherwise.
         """
         try:
             async with pool.connection() as conn:
@@ -168,11 +174,9 @@ class MessageBuffer:
                     await crs.executemany(INSERT_DOCUMENT, documents)
                 await conn.commit()
             logger.info(f"Successfully refined {len(documents)} messages into Memory.")
-            return True
         except Exception as e:
             logger.exception(f"Error while storing the batch: {e}")
             # Implement retry with jitter decorator
-            return False
 
     async def stop(self) -> None:
         """
@@ -184,12 +188,12 @@ class MessageBuffer:
         """
         logger.info("Shutting down MessageBuffer core. Finalizing persistence...")
         self._is_listening = False
-        self._flush_task.cancel()
-
-        try:
-            await self._flush_task
-        except asyncio.CancelledError:
-            pass
+        if self._flush_task:
+            self._flush_task.cancel()
+            try:
+                await self._flush_task
+            except asyncio.CancelledError:
+                pass
 
         async with self._lock:
             await self._flush()
