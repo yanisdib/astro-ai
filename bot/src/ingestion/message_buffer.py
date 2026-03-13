@@ -27,7 +27,7 @@ class MessageBuffer:
     async def start(self):
         self._flush_task = asyncio.create_task(self._periodic_flush())
 
-    async def _is_appropriate_message(self, text: str) -> bool:
+    async def _is_safe_message(self, text: str) -> bool:
         """
         Ensures that a message is not inapproriate using OpenAI's moderation endpoint
 
@@ -56,10 +56,12 @@ class MessageBuffer:
             return
 
         async with self._moderation_semaphore:
-            is_appropriate = await self._is_appropriate_message(message.content)
-            if not is_appropriate:
+            is_safe = await self._is_safe_message(message.content)
+            if not is_safe:
                 logger.info(
-                    f"Message {message.id} from user {message.user_id} contains inappropriate content."
+                    "Message %s from user %s flagged as inappropriate",
+                    message.id,
+                    message.user_id,
                 )
                 return
 
@@ -117,8 +119,11 @@ class MessageBuffer:
 
         Transfers the active queue to the commit queue via _rotate_queues, then
         calls EmbeddingService in a thread pool (via asyncio.to_thread) to avoid
-        blocking the event loop during the synchronous OpenAI HTTP call. The
-        resulting documents are then written to the PostgreSQL documents table.
+        blocking the event loop during the synchronous OpenAI HTTP call.
+
+        Messages are sorted by created_at before embedding to preserve chronological
+        order across concurrent moderation calls.The resulting documents are then
+        written to the PostgreSQL documents table.
 
         If any step fails, the error is logged and the commit queue is cleared
         in the finally block to prevent stale references from accumulating in memory.
@@ -129,7 +134,9 @@ class MessageBuffer:
         try:
             self._rotate_queues()
 
-            batch = list(self._commit_message_queue)
+            batch = sorted(
+                self._commit_message_queue, key=lambda message: message.created_at
+            )
             messages = [message.content for message in batch]
             embeddings = await asyncio.to_thread(
                 self._embedding_service.get_embeddings_batch, messages
