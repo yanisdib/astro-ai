@@ -19,26 +19,14 @@ class MessageBuffer:
         self._active_message_queue: list[ChatMessage] = []
         self._commit_message_queue: list[ChatMessage] = []
         self._swapped_at: int = int(time.time())
-        self._lock = asyncio.Lock()
+        self._flush_lock = asyncio.Lock()
+        self._persist_lock = asyncio.Lock()
         self._is_listening = True
         self._flush_task: asyncio.Task | None = None
         self._moderation_semaphore = asyncio.Semaphore(settings.BATCH_SIZE)
 
     async def start(self):
         self._flush_task = asyncio.create_task(self._periodic_flush())
-
-    async def _is_safe_message(self, text: str) -> bool:
-        """
-        Ensures that a message is not inapproriate using OpenAI's moderation endpoint
-
-        Args:
-            text (str): chat message's content
-
-        Returns:
-            bool: true if message is compliant, otherwise false
-        """
-        response = await openai_client.moderations.create(input=text)
-        return not response.results[0].flagged
 
     async def queue_message(self, message: ChatMessage) -> None:
         """
@@ -65,10 +53,43 @@ class MessageBuffer:
                 )
                 return
 
-        async with self._lock:
+        async with self._flush_lock:
             self._active_message_queue.append(message)
             if self._is_active_queue_full():
                 await self._flush()
+
+    async def stop(self) -> None:
+        """
+        Gracefully shuts down the MessageBuffer.
+
+        Cancels the periodic background task and awaits its termination before
+        performing a final flush of any messages remaining in the active queue.
+        Ensures no data is lost on shutdown.
+        """
+        logger.info("Shutting down MessageBuffer core. Finalizing persistence...")
+        self._is_listening = False
+        if self._flush_task:
+            self._flush_task.cancel()
+            try:
+                await self._flush_task
+            except asyncio.CancelledError:
+                pass
+
+        async with self._flush_lock:
+            await self._flush()
+
+    async def _is_safe_message(self, text: str) -> bool:
+        """
+        Ensures that a message is not inapproriate using OpenAI's moderation endpoint
+
+        Args:
+            text (str): chat message's content
+
+        Returns:
+            bool: true if message is compliant, otherwise false
+        """
+        response = await openai_client.moderations.create(input=text)
+        return not response.results[0].flagged
 
     def _is_active_queue_full(self) -> bool:
         """Returns True if the active queue has reached or exceeded settings.BATCH_SIZE."""
@@ -89,7 +110,7 @@ class MessageBuffer:
         while self._is_listening:
             try:
                 await asyncio.sleep(interval)
-                async with self._lock:
+                async with self._flush_lock:
                     if self._active_message_queue:
                         await self._flush()
             except asyncio.CancelledError:
@@ -131,33 +152,16 @@ class MessageBuffer:
         if not self._active_message_queue:
             return
 
-        try:
-            self._rotate_queues()
+        self._rotate_queues()
+        batch = sorted(self._commit_message_queue, key=lambda msg: msg.created_at)
+        self._commit_message_queue = []
 
-            batch = sorted(
-                self._commit_message_queue, key=lambda message: message.created_at
-            )
-            messages = [message.content for message in batch]
-            embeddings = await asyncio.to_thread(
-                self._embedding_service.get_embeddings_batch, messages
-            )
+        commit_task = asyncio.create_task(self._commit_batch(batch))
+        commit_task.add_done_callback(self._on_commit_done)
 
-            documents = [
-                {
-                    "content": message.content,
-                    "embedding": embedding,
-                    "channel_id": message.extra_metadata.get("channel_id"),
-                    "source_type": message.extra_metadata.get("source_type"),
-                    "created_at": message.created_at,
-                }
-                for message, embedding in zip(batch, embeddings, strict=True)
-            ]
-
-            await self._store_batch(documents=documents)
-        except Exception as e:
-            logger.exception(e)
-        finally:
-            self._commit_message_queue = []
+    def _on_commit_done(self, task: asyncio.Task) -> None:
+        if task.exception():
+            logger.exception("Persist batch failed", exc_info=task.exception())
 
     async def _store_batch(self, documents: list[dict]) -> None:
         """
@@ -185,22 +189,24 @@ class MessageBuffer:
             logger.exception(f"Error while storing the batch: {e}")
             # Implement retry with jitter decorator
 
-    async def stop(self) -> None:
-        """
-        Gracefully shuts down the MessageBuffer.
+    async def _commit_batch(self, batch: list[ChatMessage]) -> None:
+        async with self._persist_lock:
+            await self._embed_and_store_batch(batch=batch)
 
-        Cancels the periodic background task and awaits its termination before
-        performing a final flush of any messages remaining in the active queue.
-        Ensures no data is lost on shutdown.
-        """
-        logger.info("Shutting down MessageBuffer core. Finalizing persistence...")
-        self._is_listening = False
-        if self._flush_task:
-            self._flush_task.cancel()
-            try:
-                await self._flush_task
-            except asyncio.CancelledError:
-                pass
+    # TODO: add retry decorator here
+    async def _embed_and_store_batch(self, batch: list[ChatMessage]) -> None:
+        embeddings = await self._embedding_service.get_embeddings_batch(
+            [message.content for message in batch]
+        )
+        documents = [
+            {
+                "content": message.content,
+                "embedding": embedding,
+                "channel_id": message.extra_metadata.get("channel_id"),
+                "source_type": message.extra_metadata.get("source_type"),
+                "created_at": message.created_at,
+            }
+            for message, embedding in zip(batch, embeddings, strict=True)
+        ]
 
-        async with self._lock:
-            await self._flush()
+        await self._store_batch(documents=documents)
