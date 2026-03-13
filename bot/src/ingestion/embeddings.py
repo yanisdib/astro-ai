@@ -1,19 +1,18 @@
 import logging
 
-from openai import OpenAI
-from core.config import config
+from core.config import settings
+from core.clients import openai_client
 
 
 logger = logging.getLogger(__name__)
-OPENAI_API_KEY = config.OPENAI_API_KEY
 
 
 class EmbeddingService:
     def __init__(self) -> None:
-        self.client = OpenAI(api_key=OPENAI_API_KEY)
+        self.client = openai_client
 
     def get_embedding(
-        self, text: str, model=config.EMBEDDING_MODEL
+        self, text: str, model=settings.EMBEDDING_MODEL
     ) -> list[float] | None:
         """
         Converts a single text string into a vector embedding using OpenAI.
@@ -41,7 +40,7 @@ class EmbeddingService:
             raise
 
     def get_embeddings_batch(
-        self, texts: list[str], model=config.EMBEDDING_MODEL
+        self, texts: list[str], model=settings.EMBEDDING_MODEL
     ) -> list[list[float]]:
         """
         Converts a list of texts into embedding vectors in a single API call.

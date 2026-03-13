@@ -47,7 +47,12 @@ class Config:
         Returns:
             bool: Returns True if the configuration is complete, otherwise False.
         """
-        required_vars = ["TWITCH_BOT_ID", "TWITCH_CLIENT_ID", "TWITCH_CHANNEL", "OPENAI_API_KEY"]
+        required_vars = [
+            "TWITCH_BOT_ID",
+            "TWITCH_CLIENT_ID",
+            "TWITCH_CHANNEL",
+            "OPENAI_API_KEY",
+        ]
 
         missing = [var for var in required_vars if not getattr(cls, var)]
         if missing:
@@ -60,4 +65,4 @@ class Config:
         return True
 
 
-config = Config()
+settings = Config()

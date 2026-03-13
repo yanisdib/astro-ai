@@ -2,10 +2,12 @@ import logging
 import asyncio
 import time
 
+from openai import AsyncOpenAI
 from queries import INSERT_DOCUMENT
 from models.chat_message import ChatMessage
 from core.database import pool
-from core.config import config
+from core.clients import openai_client
+from core.config import settings
 from embeddings import EmbeddingService
 
 
@@ -25,16 +27,25 @@ class MessageBuffer:
     async def start(self):
         self._flush_task = asyncio.create_task(self._periodic_flush())
 
-    def _assess_relevance(self) -> None:
-        # to implement later
-        raise NotImplementedError
+    async def _is_moderation_valid(self, text: str) -> bool:
+        """
+        Ensures that a message is not inapproriate using OpenAI's moderation endpoint
+
+        Args:
+            text (str): chat message's content
+
+        Returns:
+            bool: true if message is compliant, otherwise false
+        """
+        response = await openai_client.moderations.create(input=text)
+        return not response.results[0].flagged
 
     async def queue_message(self, message: ChatMessage) -> None:
         """
         Enqueues a Twitch chat message for embedding and storage.
 
         Appends the message to the active queue under a lock. If the queue
-        reaches config.config.BATCH_SIZE, a flush is triggered immediately to embed and
+        reaches settings.settings.BATCH_SIZE, a flush is triggered immediately to embed and
         persist the accumulated batch.
 
         Args:
@@ -49,20 +60,20 @@ class MessageBuffer:
                 await self._flush()
 
     def _is_active_queue_full(self) -> bool:
-        """Returns True if the active queue has reached or exceeded config.config.BATCH_SIZE."""
-        return len(self._active_message_queue) >= config.BATCH_SIZE
+        """Returns True if the active queue has reached or exceeded settings.settings.BATCH_SIZE."""
+        return len(self._active_message_queue) >= settings.BATCH_SIZE
 
-    async def _periodic_flush(self, interval=config.FLUSH_INTERVAL) -> None:
+    async def _periodic_flush(self, interval=settings.FLUSH_INTERVAL) -> None:
         """
         Background task that flushes the active queue on a fixed time interval.
 
         Runs continuously while _is_listening is True, sleeping for `interval`
         seconds between flushes. This ensures messages are persisted even when
-        chat volume is low and config.BATCH_SIZE is never reached. Cancelled cleanly
+        chat volume is low and settings.BATCH_SIZE is never reached. Cancelled cleanly
         by stop().
 
         Args:
-            interval (int): Seconds between automatic flushes. Defaults to config.FLUSH_INTERVAL.
+            interval (int): Seconds between automatic flushes. Defaults to settings.FLUSH_INTERVAL.
         """
         while self._is_listening:
             try:

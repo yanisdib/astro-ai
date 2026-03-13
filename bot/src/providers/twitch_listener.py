@@ -1,10 +1,10 @@
 import logging
 
 from twitchio.ext import commands
-from core.config import config
+from core.config import settings
 from ingestion.message_buffer import MessageBuffer
 
-logging.basicConfig(level=config.LOG_LEVEL)
+logging.basicConfig(level=settings.LOG_LEVEL)
 logger = logging.getLogger(__name__)
 
 
@@ -22,9 +22,9 @@ class TwitchChatListener(commands.Bot):
         """
         # TODO: Current account is Mako AI. It should be a new account for the Bot.
         super().__init__(
-            client_id=config.TWITCH_CLIENT_ID,
-            client_secret=config.TWITCH_CLIENT_SECRET,
-            bot_id=config.TWITCH_BOT_ID,
+            client_id=settings.TWITCH_CLIENT_ID,
+            client_secret=settings.TWITCH_CLIENT_SECRET,
+            bot_id=settings.TWITCH_BOT_ID,
             prefix="!",
         )
         self._message_buffer = message_buffer
@@ -43,7 +43,7 @@ class TwitchChatListener(commands.Bot):
             print("\n" + "=" * 40)
             print("⚡ ASTRO ENGINE ACTIVATED")
             print(f"OPERATOR: {self.user.display_name}")
-            print(f"SOURCE:   {config.TWITCH_CHANNEL}")
+            print(f"SOURCE:   {settings.TWITCH_CHANNEL}")
             print("-" * 40)
             print("CORE SYSTEMS STATUS:")
             print("  > Memory Core:     INITIALIZED")
