@@ -1,8 +1,10 @@
 import asyncio
 import logging
 
+from collections.abc import Awaitable, Callable
 from functools import wraps
 from random import random
+from typing import ParamSpec, TypeVar
 from core.config import settings
 
 
@@ -11,8 +13,14 @@ DEFAULT_MAX_RETRIES = 3
 logging.basicConfig(level=settings.LOG_LEVEL)
 logger = logging.getLogger(__name__)
 
+P = ParamSpec("P")
+R = TypeVar("R")
 
-def retry(retries=DEFAULT_MAX_RETRIES, retry_on=(Exception,)):
+
+def retry(
+    retries: int = DEFAULT_MAX_RETRIES,
+    retry_on: tuple[type[Exception], ...] = (Exception,),
+) -> Callable[[Callable[P, Awaitable[R]]], Callable[P, Awaitable[R]]]:
     """
     Async decorator that retries a coroutine on specified transient exceptions.
 
@@ -35,9 +43,9 @@ def retry(retries=DEFAULT_MAX_RETRIES, retry_on=(Exception,)):
         @retry(retries=5, retry_on=(RateLimitError, APITimeoutError))
         async def call_api(): ...
     """
-    def decorator(func):
+    def decorator(func: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
         @wraps(func)
-        async def wrapper(*args, **kwargs):
+        async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
             count: int = 0
 
             while True:

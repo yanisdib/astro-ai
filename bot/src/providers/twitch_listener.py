@@ -1,14 +1,14 @@
 import logging
 
 from twitchio.ext import commands
+from twitchio import HTTPException
+from aiohttp import ClientConnectionError
+from utils.decorators import retry
 from core.config import settings
 from ingestion.message_buffer import MessageBuffer
 
 logging.basicConfig(level=settings.LOG_LEVEL)
 logger = logging.getLogger(__name__)
-
-
-COMMAND_PREFIX = "!"
 
 
 class TwitchChatListener(commands.Bot):
@@ -25,20 +25,23 @@ class TwitchChatListener(commands.Bot):
             client_id=settings.TWITCH_CLIENT_ID,
             client_secret=settings.TWITCH_CLIENT_SECRET,
             bot_id=settings.TWITCH_BOT_ID,
-            prefix="!",
+            prefix=settings.TWITCH_COMMAND_PREFIX,
         )
         self._message_buffer = message_buffer
-        # TODO: create validator checking if channel is live
-        self._can_listen = True
+        self._can_listen = False
 
     async def event_ready(self) -> None:
         """
         Handle the bot-ready event fired by TwitchIO once the connection is established.
 
-        Prints a startup banner with operator and channel info when the bot is
-        permitted to listen (``_can_listen`` is ``True``), otherwise logs that
-        the stream is unavailable.
+        Checks whether the configured channel is currently live, then prints a startup
+        banner if listening is permitted, otherwise logs that the stream is unavailable.
         """
+        try:
+            self._can_listen = await self._is_live()
+        except Exception as e:
+            logger.error("Failed to check stream status: %s. Bot will not listen.", e)
+
         if self._can_listen:
             print("\n" + "─" * 44)
             print("  A S T R O  ·  GHOST SIGNAL ACQUIRED")
@@ -58,7 +61,7 @@ class TwitchChatListener(commands.Bot):
         else:
             logger.info("Net feed unavailable. Standing by.")
 
-    def _is_command(self, text: str) -> bool:
+    def _is_bot_command(self, text: str) -> bool:
         """
         Check whether a chat message is a bot command.
 
@@ -66,7 +69,26 @@ class TwitchChatListener(commands.Bot):
             text: Raw message text from Twitch chat.
 
         Returns:
-            ``True`` if the message starts with ``COMMAND_PREFIX`` (``!``),
+            ``True`` if the message starts with ``COMMAND_PREFIX`` (``!``) and the term `astro`,
             ``False`` otherwise.
         """
-        return text.startswith(COMMAND_PREFIX)
+        return text.startswith(settings.TWITCH_COMMAND_PREFIX + "astro")
+
+    @retry(retry_on=(HTTPException, ClientConnectionError))
+    async def _is_live(self) -> bool:
+        """
+        Check whether the configured Twitch channel is currently live.
+
+        Uses the bot's app token to query the Helix streams endpoint — no
+        channel user credentials required. Retries on transient HTTP and
+        network errors with exponential backoff.
+
+        Returns:
+            bool: True if the channel has an active stream, False otherwise.
+
+        Raises:
+            HTTPException | ClientConnectionError: Propagated after all retries
+                are exhausted.
+        """
+        streams = await self.fetch_streams(user_logins=[settings.TWITCH_CHANNEL])
+        return len(streams) > 0
