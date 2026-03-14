@@ -2,6 +2,15 @@ import logging
 import asyncio
 import time
 
+from openai import (
+    APIConnectionError,
+    APITimeoutError,
+    InternalServerError,
+    RateLimitError,
+)
+from psycopg import OperationalError
+from psycopg.errors import SerializationFailure
+from utils.decorators import retry
 from queries import INSERT_DOCUMENT
 from models.chat_message import ChatMessage
 from core.database import pool
@@ -15,6 +24,13 @@ logger = logging.getLogger(__name__)
 
 class MessageBuffer:
     def __init__(self) -> None:
+        """
+        Initialize the MessageBuffer with empty queues and background task handles.
+
+        Sets up the dual-queue structure, concurrency primitives, and a moderation
+        semaphore capped at settings.BATCH_SIZE to limit concurrent OpenAI calls.
+        The flush background task is not started here — call start() to begin processing.
+        """
         self._embedding_service = EmbeddingService()
         self._active_message_queue: list[ChatMessage] = []
         self._commit_message_queue: list[ChatMessage] = []
@@ -26,6 +42,12 @@ class MessageBuffer:
         self._moderation_semaphore = asyncio.Semaphore(settings.BATCH_SIZE)
 
     async def start(self):
+        """
+        Start the background periodic flush task.
+
+        Creates an asyncio Task that calls _periodic_flush on a fixed interval.
+        Must be called once after instantiation before messages are queued.
+        """
         self._flush_task = asyncio.create_task(self._periodic_flush())
 
     async def queue_message(self, message: ChatMessage) -> None:
@@ -160,9 +182,20 @@ class MessageBuffer:
         commit_task.add_done_callback(self._on_commit_done)
 
     def _on_commit_done(self, task: asyncio.Task) -> None:
+        """
+        Callback attached to each commit task to surface unhandled exceptions.
+
+        Because _commit_batch runs as a fire-and-forget task, exceptions are not
+        propagated automatically. This callback inspects the completed task and
+        logs any exception so failures are not silently swallowed.
+
+        Args:
+            task (asyncio.Task): The completed commit task returned by asyncio.create_task.
+        """
         if task.exception():
             logger.exception("Persist batch failed", exc_info=task.exception())
 
+    @retry(retry_on=(OperationalError, SerializationFailure))
     async def _store_batch(self, documents: list[dict]) -> None:
         """
         Persists a batch of embedded Twitch chat messages to the documents table for RAG retrieval.
@@ -187,14 +220,47 @@ class MessageBuffer:
             logger.info(f"Successfully refined {len(documents)} messages into Memory.")
         except Exception as e:
             logger.exception(f"Error while storing the batch: {e}")
-            # Implement retry with jitter decorator
+            raise e
 
     async def _commit_batch(self, batch: list[ChatMessage]) -> None:
+        """
+        Serialize commit operations by acquiring the persist lock before embedding.
+
+        Wraps _embed_and_store_batch under _persist_lock to ensure that concurrent
+        fire-and-forget commit tasks don't race each other when writing to the database.
+
+        Args:
+            batch (list[ChatMessage]): The sorted batch of messages to embed and persist.
+        """
         async with self._persist_lock:
             await self._embed_and_store_batch(batch=batch)
 
-    # TODO: add retry decorator here
+    @retry(
+        retry_on=(
+            APIConnectionError,
+            APITimeoutError,
+            RateLimitError,
+            InternalServerError,
+        )
+    )
     async def _embed_and_store_batch(self, batch: list[ChatMessage]) -> None:
+        """
+        Generate embeddings for a batch of messages and persist them to the database.
+
+        Calls the EmbeddingService to vectorize all message contents in a single
+        API request, then zips each embedding with its source message to build
+        the document payload. Delegates storage to _store_batch.
+
+        Retries on transient OpenAI errors (connection, timeout, rate limit, server).
+
+        Args:
+            batch (list[ChatMessage]): The sorted batch of messages to embed and store.
+
+        Raises:
+            APIConnectionError | APITimeoutError | RateLimitError | InternalServerError:
+                Propagated after all retries are exhausted.
+            ValueError: Raised by zip(strict=True) if embeddings count doesn't match batch.
+        """
         embeddings = await self._embedding_service.get_embeddings_batch(
             [message.content for message in batch]
         )

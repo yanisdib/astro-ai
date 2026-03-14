@@ -11,7 +11,7 @@ class EmbeddingService:
     def __init__(self) -> None:
         self.client = openai_client
 
-    def get_embedding(
+    async def get_embedding(
         self, text: str, model=settings.EMBEDDING_MODEL
     ) -> list[float] | None:
         """
@@ -33,13 +33,15 @@ class EmbeddingService:
             return None
         try:
             clean_text = text.replace("\n", "")
-            response = self.client.embeddings.create(input=[clean_text], model=model)
+            response = await self.client.embeddings.create(
+                input=[clean_text], model=model
+            )
             return response.data[0].embedding
         except Exception as e:
             logger.error(f"Failed to generate embedding: {e}")
             raise
 
-    def get_embeddings_batch(
+    async def get_embeddings_batch(
         self, texts: list[str], model=settings.EMBEDDING_MODEL
     ) -> list[list[float]]:
         """
@@ -65,7 +67,9 @@ class EmbeddingService:
 
         try:
             clean_texts = [text.replace("\n", "") for text in texts]
-            response = self.client.embeddings.create(input=clean_texts, model=model)
+            response = await self.client.embeddings.create(
+                input=clean_texts, model=model
+            )
             return [item.embedding for item in response.data]
         except Exception as e:
             logger.error(f"Batch embedding generation failed: {e}")
