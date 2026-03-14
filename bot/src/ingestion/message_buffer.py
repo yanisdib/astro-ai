@@ -68,7 +68,7 @@ class MessageBuffer:
         async with self._moderation_semaphore:
             is_safe = await self._is_safe_message(message.content)
             if not is_safe:
-                logger.info(
+                logger.debug(
                     "Message %s from user %s flagged as inappropriate",
                     message.id,
                     message.user_id,

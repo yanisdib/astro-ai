@@ -54,12 +54,12 @@ def retry(
                 except retry_on as e:
                     count += 1
                     if count > retries:
-                        logger.info("Maximum retries reached. Last error: %s", e)
+                        logger.error("Maximum retries reached. Last error: %s", e)
                         raise e
 
                     delay = (2**count) + random()  # exponential backoff + jitter
                     logger.debug(f"Caught expected error: {type(e).__name__}")
-                    logger.info("Retrying in %s seconds...", delay)
+                    logger.debug("Retrying in %s seconds...", delay)
                     await asyncio.sleep(delay)
                 except Exception as e:
                     # This catches unexpected errors (like ValueError) and fails fast
