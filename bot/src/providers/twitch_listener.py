@@ -40,22 +40,23 @@ class TwitchChatListener(commands.Bot):
         the stream is unavailable.
         """
         if self._can_listen:
-            print("\n" + "=" * 40)
-            print("⚡ ASTRO ENGINE ACTIVATED")
-            print(f"OPERATOR: {self.user.display_name}")
-            print(f"SOURCE:   {settings.TWITCH_CHANNEL}")
-            print("-" * 40)
-            print("CORE SYSTEMS STATUS:")
-            print("  > Memory Core:     INITIALIZED")
-            print("  > Safety Shield:   ARMED")
-            print("  > Skill Engine:    STANDBY")
-            print("=" * 40 + "\n")
+            print("\n" + "─" * 44)
+            print("  A S T R O  ·  GHOST SIGNAL ACQUIRED")
+            print("─" * 44)
+            print(f"  SHELL      {self.user.display_name}")
+            print(f"  NET NODE   {settings.TWITCH_CHANNEL}")
+            print("─" * 44)
+            print("  ENGINE              STATE")
+            print("  · · · · · · · · · · · · · · · · · · · ")
+            print("  Memory Core       ■ SYNCHRONIZED")
+            print("  Filter Drive      ■ THROTTLED")
+            print("  Ghost Engine      ○ DORMANT")
+            print("─" * 44)
+            print("  scanning the net.\n")
 
-            logger.info(
-                "Synchronization complete. Processing Data into Collective Memory."
-            )
+            logger.info("Ghost is live. Ingestion engines running.")
         else:
-            logger.info("Energy Stream is currently not accessible.")
+            logger.info("Net feed unavailable. Standing by.")
 
     def _is_command(self, text: str) -> bool:
         """
