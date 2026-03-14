@@ -9,7 +9,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 BASE_DIR: Path = Path(__file__).resolve().parent
-load_dotenv()
+load_dotenv(BASE_DIR.parent.parent / "env" / ".env.dev")
 
 
 class Config:

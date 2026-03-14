@@ -20,6 +20,7 @@ Usage:
         await conn.execute("INSERT INTO messages ...")
 """
 
+import asyncio
 import os
 import logging
 from psycopg_pool import AsyncConnectionPool
@@ -29,7 +30,7 @@ logger = logging.getLogger(__name__)
 # Build the connection string
 conninfo = (
     f"postgresql://{os.getenv('POSTGRES_USER')}:{os.getenv('POSTGRES_PASSWORD')}"
-    f"@{os.getenv('POSTGRES_HOST', 'astrodb')}:{os.getenv('POSTGRES_PORT', '5432')}"
+    f"@{os.getenv('POSTGRES_HOST', 'unit-01.infra.orb.local')}:{os.getenv('POSTGRES_PORT', '5432')}"
     f"/{os.getenv('POSTGRES_DB')}"
 )
 
@@ -43,14 +44,39 @@ pool = AsyncConnectionPool(
 )
 
 CLOSE_DB_TIMEOUT = 30
+_DB_CONNECT_RETRIES = 10
+_DB_CONNECT_DELAY = 3  # seconds between attempts
 
 
 async def init_db() -> None:
-    """Call once at bot startup to open the pool and setup extensions."""
-    await pool.open()
-    async with pool.connection() as conn:
-        await conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
-    logger.info("Database pool is ready.")
+    """Call once at bot startup to open the pool and setup extensions.
+
+    Retries up to _DB_CONNECT_RETRIES times with a fixed delay to handle
+    the case where Postgres is still starting when the bot container comes up.
+
+    Raises:
+        Exception: Re-raises the last connection error once retries are exhausted.
+    """
+    last_error: Exception | None = None
+    for attempt in range(1, _DB_CONNECT_RETRIES + 1):
+        try:
+            await pool.open(wait=True)
+            async with pool.connection() as conn:
+                await conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
+            logger.info("Database pool is ready.")
+            return
+        except Exception as e:
+            last_error = e
+            logger.warning(
+                "Database not ready (attempt %d/%d): %s. Retrying in %ds...",
+                attempt,
+                _DB_CONNECT_RETRIES,
+                e,
+                _DB_CONNECT_DELAY,
+            )
+            await asyncio.sleep(_DB_CONNECT_DELAY)
+
+    raise last_error  # type: ignore[misc]
 
 
 async def close_db() -> None:

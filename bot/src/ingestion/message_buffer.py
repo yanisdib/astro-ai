@@ -11,12 +11,12 @@ from openai import (
 from psycopg import OperationalError
 from psycopg.errors import SerializationFailure
 from utils.decorators import retry
-from queries import INSERT_DOCUMENT
+from ingestion.queries import INSERT_DOCUMENT
 from models.chat_message import ChatMessage
 from core.database import pool
 from core.clients import openai_client
 from core.config import settings
-from embeddings import EmbeddingService
+from ingestion.embeddings import EmbeddingService
 
 
 logger = logging.getLogger(__name__)
@@ -214,14 +214,11 @@ class MessageBuffer:
                 - source_type (str): Origin platform identifier (e.g. "twitch").
                 - created_at (int): Unix timestamp of the original message.
         """
-        try:
-            async with pool.connection() as conn:
-                async with conn.cursor() as crs:
-                    await crs.executemany(INSERT_DOCUMENT, documents)
-                await conn.commit()
-            logger.info(f"Successfully refined {len(documents)} messages into Memory.")
-        except Exception as e:
-            raise e
+        async with pool.connection() as conn:
+            async with conn.cursor() as crs:
+                await crs.executemany(INSERT_DOCUMENT, documents)
+            await conn.commit()
+        logger.info(f"Successfully refined {len(documents)} messages into Memory.")
 
     async def _commit_batch(self, batch: list[ChatMessage]) -> None:
         """

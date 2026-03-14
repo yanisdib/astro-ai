@@ -32,3 +32,7 @@ COPY src/ ./src/
 # Ensure the app runs as a non-root user for security
 RUN useradd -m astro
 USER astro
+
+ENV PYTHONPATH=/app/src
+
+CMD ["python", "src/main.py"]
