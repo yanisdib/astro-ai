@@ -8,8 +8,7 @@ from ingestion.message_buffer import MessageBuffer
 from providers.twitch_listener import TwitchChatListener
 
 
-logging.basicConfig(level=settings.LOG_LEVEL)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("astro")
 
 
 async def main() -> None:

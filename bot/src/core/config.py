@@ -5,8 +5,12 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s  %(levelname)-8s  %(name)-20s  %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger("config")
 
 BASE_DIR: Path = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR.parent.parent / "env" / ".env.dev")

@@ -7,8 +7,7 @@ from utils.decorators import retry
 from core.config import settings
 from ingestion.message_buffer import MessageBuffer
 
-logging.basicConfig(level=settings.LOG_LEVEL)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("TwitchChatListener")
 
 
 class TwitchChatListener(commands.Bot):

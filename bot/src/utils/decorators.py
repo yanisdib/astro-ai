@@ -5,13 +5,11 @@ from collections.abc import Awaitable, Callable
 from functools import wraps
 from random import random
 from typing import ParamSpec, TypeVar
-from core.config import settings
 
 
 DEFAULT_MAX_RETRIES = 3
 
-logging.basicConfig(level=settings.LOG_LEVEL)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("retry")
 
 P = ParamSpec("P")
 R = TypeVar("R")
