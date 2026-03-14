@@ -9,8 +9,6 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 BASE_DIR: Path = Path(__file__).resolve().parent
-ENV_DIR: Path = BASE_DIR.joinpath("/")
-DEV_ENV_FILEPATH: Path = ENV_DIR / ".env.dev"
 load_dotenv()
 
 
@@ -40,7 +38,7 @@ class Config:
     TWITCH_COMMAND_PREFIX = "!"
     # OpenAI Configuration
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
-    EMBEDDING_MODEL: str = "text-embedding-3-small"
+    EMBEDDING_MODEL: str = os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
 
     @classmethod
     def validate_config(cls) -> bool:

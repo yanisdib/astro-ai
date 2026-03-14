@@ -192,7 +192,9 @@ class MessageBuffer:
         Args:
             task (asyncio.Task): The completed commit task returned by asyncio.create_task.
         """
-        if task.exception():
+        if task.cancelled():
+            logger.warning("Batch commit task was cancelled.")
+        elif task.exception():
             logger.exception("Persist batch failed", exc_info=task.exception())
 
     @retry(retry_on=(OperationalError, SerializationFailure))
@@ -219,7 +221,6 @@ class MessageBuffer:
                 await conn.commit()
             logger.info(f"Successfully refined {len(documents)} messages into Memory.")
         except Exception as e:
-            logger.exception(f"Error while storing the batch: {e}")
             raise e
 
     async def _commit_batch(self, batch: list[ChatMessage]) -> None:
