@@ -3,7 +3,7 @@ from typing import Dict, Any
 
 
 @dataclass(frozen=True)
-class ChatMessage:
+class TwitchMessage:
     """
     Core Data Transfer Object representing a single immutable Twitch chat message.
     Encapsulates Twitch message data for system-wide processing.
@@ -16,5 +16,6 @@ class ChatMessage:
     is_bot: bool
     is_mod: bool
     is_command: bool
+    is_shared_chat: bool
     created_at: int
     extra_metadata: Dict[str, Any] = field(default_factory=dict)

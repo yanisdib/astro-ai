@@ -4,7 +4,7 @@ from core.config import settings
 from core.clients import openai_client
 
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("EmbeddingService")
 
 
 class EmbeddingService:

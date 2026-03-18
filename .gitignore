@@ -459,3 +459,6 @@ __marimo__/
 
 # Redis
 redis.conf
+
+# Claude
+agent-memory/

@@ -1,11 +1,17 @@
 import logging
 
+from typing import Any
 from twitchio.ext import commands
-from twitchio import HTTPException
+from twitchio import HTTPException, ChatMessage
 from aiohttp import ClientConnectionError
-from utils.decorators import retry
+
 from core.config import settings
 from ingestion.message_buffer import MessageBuffer
+
+from models.twitch_message import TwitchMessage
+from models.stream_event import EventSource
+
+from utils.decorators import retry
 
 logger = logging.getLogger("TwitchChatListener")
 
@@ -59,6 +65,47 @@ class TwitchChatListener(commands.Bot):
             logger.info("Ghost is live. Ingestion engines running.")
         else:
             logger.info("Net feed unavailable. Standing by.")
+
+    async def event_message(self, message: ChatMessage) -> None:
+        if not message.metadata:
+            return
+
+        shared_chat_details = self._get_shared_chat_details(message)
+        is_shared_chat = shared_chat_details is not None
+
+        extra_metadata: dict[str, Any] = {
+            "channel_id": str(message.broadcaster.id),
+            "source_type": EventSource.TWITCH.value,
+        }
+        if shared_chat_details:
+            extra_metadata.update(shared_chat_details)
+
+        new_message = TwitchMessage(
+            id=message.metadata.message_id,
+            content=message.text,
+            user_id=message.chatter.id,
+            username=message.chatter.name or message.chatter.id,
+            is_bot=message.chatter.id == settings.TWITCH_BOT_ID,
+            is_mod=message.chatter.moderator,
+            is_command=self._is_bot_command(message.text),
+            is_shared_chat=is_shared_chat,
+            created_at=int(message.metadata.message_timestamp.timestamp()),
+            extra_metadata=extra_metadata,
+        )
+
+        await self._message_buffer.queue_message(message=new_message)
+
+    def _get_shared_chat_details(self, message: ChatMessage) -> dict[str, Any] | None:
+        broadcaster_id = getattr(message.metadata, "source_broadcaster_user_id", None)
+        if broadcaster_id is None:
+            return None
+
+        return {
+            "source_broadcaster_id": broadcaster_id,
+            "source_broadcaster_login": getattr(
+                message.metadata, "source_broadcaster_user_login", None
+            ),
+        }
 
     def _is_bot_command(self, text: str) -> bool:
         """

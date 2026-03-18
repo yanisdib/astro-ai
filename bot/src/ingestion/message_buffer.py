@@ -8,18 +8,23 @@ from openai import (
     InternalServerError,
     RateLimitError,
 )
+
 from psycopg import OperationalError
 from psycopg.errors import SerializationFailure
-from utils.decorators import retry
-from ingestion.queries import INSERT_DOCUMENT
-from models.chat_message import ChatMessage
+
 from core.database import pool
 from core.clients import openai_client
 from core.config import settings
+
+from ingestion.queries import INSERT_DOCUMENT
+from models.twitch_message import TwitchMessage
+from models.stream_event import StreamEvent, EventSource
 from ingestion.embeddings import EmbeddingService
 
+from utils.decorators import retry
 
-logger = logging.getLogger(__name__)
+
+logger = logging.getLogger("MessageBuffer")
 
 
 class MessageBuffer:
@@ -32,8 +37,8 @@ class MessageBuffer:
         The flush background task is not started here — call start() to begin processing.
         """
         self._embedding_service = EmbeddingService()
-        self._active_message_queue: list[ChatMessage] = []
-        self._commit_message_queue: list[ChatMessage] = []
+        self._active_message_queue: list[TwitchMessage] = []
+        self._commit_message_queue: list[TwitchMessage] = []
         self._swapped_at: int = int(time.time())
         self._flush_lock = asyncio.Lock()
         self._persist_lock = asyncio.Lock()
@@ -50,7 +55,7 @@ class MessageBuffer:
         """
         self._flush_task = asyncio.create_task(self._periodic_flush())
 
-    async def queue_message(self, message: ChatMessage) -> None:
+    async def queue_message(self, message: TwitchMessage) -> None:
         """
         Enqueues a Twitch chat message for embedding and storage.
 
@@ -59,7 +64,7 @@ class MessageBuffer:
         persist the accumulated batch.
 
         Args:
-            message (ChatMessage): The incoming Twitch chat message to buffer.
+            message (TwitchMessage): The incoming Twitch chat message to buffer.
         """
         if not message:
             logger.debug("Cannot proceed with nonexistent message")
@@ -220,7 +225,7 @@ class MessageBuffer:
             await conn.commit()
         logger.info(f"Successfully refined {len(documents)} messages into Memory.")
 
-    async def _commit_batch(self, batch: list[ChatMessage]) -> None:
+    async def _commit_batch(self, batch: list[TwitchMessage]) -> None:
         """
         Serialize commit operations by acquiring the persist lock before embedding.
 
@@ -228,7 +233,7 @@ class MessageBuffer:
         fire-and-forget commit tasks don't race each other when writing to the database.
 
         Args:
-            batch (list[ChatMessage]): The sorted batch of messages to embed and persist.
+            batch (list[TwitchMessage]): The sorted batch of messages to embed and persist.
         """
         async with self._persist_lock:
             await self._embed_and_store_batch(batch=batch)
@@ -241,7 +246,7 @@ class MessageBuffer:
             InternalServerError,
         )
     )
-    async def _embed_and_store_batch(self, batch: list[ChatMessage]) -> None:
+    async def _embed_and_store_batch(self, batch: list[TwitchMessage]) -> None:
         """
         Generate embeddings for a batch of messages and persist them to the database.
 
@@ -252,7 +257,7 @@ class MessageBuffer:
         Retries on transient OpenAI errors (connection, timeout, rate limit, server).
 
         Args:
-            batch (list[ChatMessage]): The sorted batch of messages to embed and store.
+            batch (list[TwitchMessage]): The sorted batch of messages to embed and store.
 
         Raises:
             APIConnectionError | APITimeoutError | RateLimitError | InternalServerError:
@@ -262,15 +267,47 @@ class MessageBuffer:
         embeddings = await self._embedding_service.get_embeddings_batch(
             [message.content for message in batch]
         )
-        documents = [
-            {
-                "content": message.content,
-                "embedding": embedding,
-                "channel_id": message.extra_metadata.get("channel_id"),
-                "source_type": message.extra_metadata.get("source_type"),
-                "created_at": message.created_at,
-            }
+        events = [
+            self._to_stream_event(message, embedding)
             for message, embedding in zip(batch, embeddings, strict=True)
         ]
 
-        await self._store_batch(documents=documents)
+        await self._store_vectors(events)
+        await self._store_relational(events)
+
+    def _to_stream_event(self, message: TwitchMessage, embedding: list[float]) -> StreamEvent:
+        # TODO: map TwitchMessage fields to StreamEvent
+        # is_host, is_verified have no TwitchIO equivalent yet — determine source
+        raise NotImplementedError
+
+    @retry(retry_on=(OperationalError, SerializationFailure))
+    async def _store_vectors(self, events: list[StreamEvent]) -> None:
+        documents = [
+            {
+                "message_id": event.message_id,
+                "content": event.content,
+                "embedding": event.embedding,
+                "user_id": event.user_id,
+                "username": event.username,
+                "channel_id": event.channel_id,
+                "source": event.source.value,
+                "is_host": event.is_host,
+                "is_bot": event.is_bot,
+                "is_moderator": event.is_moderator,
+                "is_verified": event.is_verified,
+                "is_shared": event.is_shared,
+                "intent_category": event.intent_category.value if event.intent_category else None,
+                "topics": event.topics,
+                "created_at": event.created_at,
+            }
+            for event in events
+        ]
+        async with pool.connection() as conn:
+            async with conn.cursor() as crs:
+                await crs.executemany(INSERT_DOCUMENT, documents)
+            await conn.commit()
+        logger.info(f"Successfully stored {len(documents)} messages into Memory.")
+
+    async def _store_relational(self, events: list[StreamEvent]) -> None:
+        # TODO: upsert relational data (users, channels, etc.) from StreamEvent batch
+        raise NotImplementedError

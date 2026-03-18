@@ -23,9 +23,11 @@ Usage:
 import asyncio
 import os
 import logging
-from psycopg_pool import AsyncConnectionPool
 
-logger = logging.getLogger(__name__)
+from psycopg_pool import AsyncConnectionPool
+from pgvector.psycopg import register_vector_async
+
+logger = logging.getLogger("database")
 
 # Build the connection string
 conninfo = (
@@ -61,8 +63,11 @@ async def init_db() -> None:
     for attempt in range(1, _DB_CONNECT_RETRIES + 1):
         try:
             await pool.open(wait=True)
+
             async with pool.connection() as conn:
                 await conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
+                await register_vector_async(conn)
+
             logger.info("Database pool is ready.")
             return
         except Exception as e:
