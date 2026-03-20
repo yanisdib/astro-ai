@@ -21,9 +21,13 @@ class TwitchUser:
 
     id: str
     username: str
+    is_astro: bool
     is_bot: bool
     is_mod: bool
-    is_host: bool
+    is_broadcaster: bool
     is_verified: bool
+    is_partner: bool
+    is_affiliate: bool
     is_subscriber: bool
+    with_prime: bool
     subscriber_tier: Optional[SubscriberTier] = None

@@ -260,28 +260,46 @@ class MessageBuffer:
             {
                 "message_id": event.message_id,
                 "content": event.content,
-                "embedding": event.embedding,
-                "user_id": event.user_id,
-                "username": event.username,
+                "is_shared": event.is_shared,
+                "created_at": event.created_at,
                 "channel_id": event.channel_id,
                 "source": event.source.value,
-                "is_host": event.is_host,
-                "is_bot": event.is_bot,
-                "is_mod": event.is_mod,
-                "is_verified": event.is_verified,
-                "is_shared": event.is_shared,
-                "intent_category": (
-                    event.intent_category.value if event.intent_category else None
-                ),
-                "topics": event.topics,
-                "created_at": event.created_at,
+                "author": {
+                    "id": event.author.id,
+                    "username": event.author.username,
+                    "is_astro": event.author.is_astro,
+                    "is_bot": event.author.is_bot,
+                    "is_mod": event.author.is_mod,
+                    "is_broadcaster": event.author.is_broadcaster,
+                    "is_verified": event.author.is_verified,
+                    "is_partner": event.author.is_partner,
+                    "is_affiliate": event.author.is_affiliate,
+                    "is_subscriber": event.author.is_subscriber,
+                    "with_prime": event.author.with_prime,
+                    "subscriber_tier": (
+                        event.author.subscriber_tier.value
+                        if event.author.subscriber_tier
+                        else None
+                    ),
+                },
+                "semantics": {
+                    "embedding": event.semantics.embedding,
+                    "intent_category": (
+                        event.semantics.intent_category.value
+                        if event.semantics.intent_category
+                        else None
+                    ),
+                    "topics": event.semantics.topics,
+                },
             }
             for event in events
         ]
+
         async with pool.connection() as conn:
             async with conn.cursor() as crs:
                 await crs.executemany(INSERT_DOCUMENT, documents)
             await conn.commit()
+
         logger.info("Successfully stored %d messages into Memory.", len(documents))
 
     async def _persist_entities(self, events: list[StreamEvent]) -> None:
