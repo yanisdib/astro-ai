@@ -9,7 +9,7 @@ from core.config import settings
 from ingestion.message_buffer import MessageBuffer
 
 from models.twitch_message import TwitchMessage
-from models.stream_event import EventSource
+from models.twitch_user import TwitchUser
 
 from utils.decorators import retry
 
@@ -70,27 +70,24 @@ class TwitchChatListener(commands.Bot):
         if not message.metadata:
             return
 
-        shared_chat_details = self._get_shared_chat_details(message)
-        is_shared_chat = shared_chat_details is not None
-
-        extra_metadata: dict[str, Any] = {
-            "channel_id": str(message.broadcaster.id),
-            "source_type": EventSource.TWITCH.value,
-        }
-        if shared_chat_details:
-            extra_metadata.update(shared_chat_details)
+        author = TwitchUser(
+            id=message.chatter.id,
+            username=message.chatter.name or message.chatter.id,
+            is_bot=message.chatter.id == settings.TWITCH_BOT_ID,
+            is_mod=message.chatter.moderator,
+            is_host=False,  # not exposed by TwitchIO
+            is_verified=False,  # not exposed by TwitchIO
+            is_subscriber=False,  # TODO: populate from TwitchIO chatter badges
+        )
 
         new_message = TwitchMessage(
             id=message.metadata.message_id,
             content=message.text,
-            user_id=message.chatter.id,
-            username=message.chatter.name or message.chatter.id,
-            is_bot=message.chatter.id == settings.TWITCH_BOT_ID,
-            is_mod=message.chatter.moderator,
+            author=author,
+            channel_id=str(message.broadcaster.id),
             is_command=self._is_bot_command(message.text),
-            is_shared_chat=is_shared_chat,
             created_at=int(message.metadata.message_timestamp.timestamp()),
-            extra_metadata=extra_metadata,
+            extra_metadata=self._get_shared_chat_details(message) or {},
         )
 
         await self._message_buffer.queue_message(message=new_message)

@@ -1,14 +1,13 @@
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
+from models.twitch_user import SubscriberTier
 
-class SubscriberTier(Enum):
-    """Twitch subscription tier of the chatter at the time the message was sent."""
-
-    TIER_1 = "1000"
-    TIER_2 = "2000"
-    TIER_3 = "3000"
+if TYPE_CHECKING:
+    from models.twitch_message import TwitchMessage
 
 
 class IntentCategory(Enum):
@@ -41,7 +40,7 @@ class StreamEvent:
     username: str
     is_host: bool
     is_bot: bool
-    is_moderator: bool
+    is_mod: bool
     is_verified: bool
     is_shared: bool
     created_at: int
@@ -58,3 +57,23 @@ class StreamEvent:
     embedding: list[float] = field(default_factory=list)
     intent_category: Optional[IntentCategory] = IntentCategory.CHATTING
     topics: list[str] = field(default_factory=list)
+
+    @classmethod
+    def from_twitch_message(cls, message: TwitchMessage, embedding: list[float]) -> StreamEvent:
+        return cls(
+            message_id=message.id,
+            content=message.content,
+            user_id=message.author.id,
+            username=message.author.username,
+            is_host=message.author.is_host,
+            is_bot=message.author.is_bot,
+            is_mod=message.author.is_mod,
+            is_verified=message.author.is_verified,
+            is_shared="source_broadcaster_id" in message.extra_metadata,
+            created_at=message.created_at,
+            channel_id=message.channel_id,
+            source=EventSource.TWITCH,
+            is_subscribed=message.author.is_subscriber,
+            subscriber_tier=message.author.subscriber_tier,
+            embedding=embedding,
+        )

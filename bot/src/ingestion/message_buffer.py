@@ -18,7 +18,7 @@ from core.config import settings
 
 from ingestion.queries import INSERT_DOCUMENT
 from models.twitch_message import TwitchMessage
-from models.stream_event import StreamEvent, EventSource
+from models.stream_event import StreamEvent
 from ingestion.embeddings import EmbeddingService
 
 from utils.decorators import retry
@@ -44,6 +44,9 @@ class MessageBuffer:
         self._persist_lock = asyncio.Lock()
         self._is_listening = True
         self._flush_task: asyncio.Task | None = None
+        # Limits concurrent OpenAI moderation calls to avoid overwhelming the API.
+        # Future: make this limit independent of BATCH_SIZE (dedicated MODERATION_CONCURRENCY setting),
+        # or replace with a worker queue to decouple moderation throughput from batch size.
         self._moderation_semaphore = asyncio.Semaphore(settings.BATCH_SIZE)
 
     async def start(self):
@@ -66,17 +69,13 @@ class MessageBuffer:
         Args:
             message (TwitchMessage): The incoming Twitch chat message to buffer.
         """
-        if not message:
-            logger.debug("Cannot proceed with nonexistent message")
-            return
-
         async with self._moderation_semaphore:
             is_safe = await self._is_safe_message(message.content)
             if not is_safe:
                 logger.debug(
                     "Message %s from user %s flagged as inappropriate",
                     message.id,
-                    message.user_id,
+                    message.author.id,
                 )
                 return
 
@@ -144,7 +143,7 @@ class MessageBuffer:
                 break
             except Exception as e:
                 logger.exception(
-                    f"Error occurred processing the MessageBuffer loop: {e}"
+                    "Error occurred processing the MessageBuffer loop: %s", e
                 )
                 await asyncio.sleep(5)
 
@@ -202,29 +201,6 @@ class MessageBuffer:
         elif task.exception():
             logger.exception("Persist batch failed", exc_info=task.exception())
 
-    @retry(retry_on=(OperationalError, SerializationFailure))
-    async def _store_batch(self, documents: list[dict]) -> None:
-        """
-        Persists a batch of embedded Twitch chat messages to the documents table for RAG retrieval.
-
-        Each document contains the raw message content alongside its embedding vector,
-        enabling similarity search at query time. Commits the full batch atomically —
-        either all rows are written or none are.
-
-        Args:
-            documents (list[dict]): Documents to insert, each with the following keys:
-                - content (str): Raw Twitch chat message text.
-                - embedding (list[float]): Vector representation from EmbeddingService.
-                - channel_id (str): Twitch channel the message originated from.
-                - source_type (str): Origin platform identifier (e.g. "twitch").
-                - created_at (int): Unix timestamp of the original message.
-        """
-        async with pool.connection() as conn:
-            async with conn.cursor() as crs:
-                await crs.executemany(INSERT_DOCUMENT, documents)
-            await conn.commit()
-        logger.info(f"Successfully refined {len(documents)} messages into Memory.")
-
     async def _commit_batch(self, batch: list[TwitchMessage]) -> None:
         """
         Serialize commit operations by acquiring the persist lock before embedding.
@@ -268,20 +244,18 @@ class MessageBuffer:
             [message.content for message in batch]
         )
         events = [
-            self._to_stream_event(message, embedding)
+            StreamEvent.from_twitch_message(message, embedding)
             for message, embedding in zip(batch, embeddings, strict=True)
         ]
 
-        await self._store_vectors(events)
-        await self._store_relational(events)
+        await self._store_batch(events)
 
-    def _to_stream_event(self, message: TwitchMessage, embedding: list[float]) -> StreamEvent:
-        # TODO: map TwitchMessage fields to StreamEvent
-        # is_host, is_verified have no TwitchIO equivalent yet — determine source
-        raise NotImplementedError
+    async def _store_batch(self, events: list[StreamEvent]) -> None:
+        await self._store_embeddings(events)
+        # TODO: await self._persist_entities(events)
 
     @retry(retry_on=(OperationalError, SerializationFailure))
-    async def _store_vectors(self, events: list[StreamEvent]) -> None:
+    async def _store_embeddings(self, events: list[StreamEvent]) -> None:
         documents = [
             {
                 "message_id": event.message_id,
@@ -293,10 +267,12 @@ class MessageBuffer:
                 "source": event.source.value,
                 "is_host": event.is_host,
                 "is_bot": event.is_bot,
-                "is_moderator": event.is_moderator,
+                "is_mod": event.is_mod,
                 "is_verified": event.is_verified,
                 "is_shared": event.is_shared,
-                "intent_category": event.intent_category.value if event.intent_category else None,
+                "intent_category": (
+                    event.intent_category.value if event.intent_category else None
+                ),
                 "topics": event.topics,
                 "created_at": event.created_at,
             }
@@ -306,8 +282,10 @@ class MessageBuffer:
             async with conn.cursor() as crs:
                 await crs.executemany(INSERT_DOCUMENT, documents)
             await conn.commit()
-        logger.info(f"Successfully stored {len(documents)} messages into Memory.")
+        logger.info("Successfully stored %d messages into Memory.", len(documents))
 
-    async def _store_relational(self, events: list[StreamEvent]) -> None:
-        # TODO: upsert relational data (users, channels, etc.) from StreamEvent batch
-        raise NotImplementedError
+    async def _persist_entities(self, events: list[StreamEvent]) -> None:
+        # TODO: upsert users and channels from each StreamEvent into relational table when created.
+        # Each event carries a full TwitchUser snapshot — use it to upsert user records
+        # (id, username, subscriber status) and channel membership at message time.
+        pass
