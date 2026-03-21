@@ -66,33 +66,33 @@ class TwitchChatListener(commands.Bot):
         else:
             logger.info("Net feed unavailable. Standing by.")
 
-    async def event_message(self, message: ChatMessage) -> None:
-        if not message.metadata:
+    async def event_message(self, payload: ChatMessage) -> None:
+        if not payload.metadata:
             return
 
-        author = TwitchUser.from_chatter(message.chatter, settings.TWITCH_BOT_ID)
+        author = TwitchUser.from_chatter(payload.chatter, settings.TWITCH_BOT_ID)
 
         new_message = TwitchMessage(
-            id=message.metadata.message_id,
-            content=message.text,
+            id=payload.metadata.message_id,
+            content=payload.text,
             author=author,
-            channel_id=str(message.broadcaster.id),
-            is_command=self._is_bot_command(message.text),
-            created_at=int(message.metadata.message_timestamp.timestamp()),
-            extra_metadata=self._get_shared_chat_details(message) or {},
+            channel_id=str(payload.broadcaster.id),
+            is_command=self._is_bot_command(payload.text),
+            created_at=int(payload.metadata.message_timestamp.timestamp()),
+            extra_metadata=self._get_shared_chat_details(payload) or {},
         )
 
         await self._message_buffer.queue_message(message=new_message)
 
-    def _get_shared_chat_details(self, message: ChatMessage) -> dict[str, Any] | None:
-        broadcaster_id = getattr(message.metadata, "source_broadcaster_user_id", None)
+    def _get_shared_chat_details(self, payload: ChatMessage) -> dict[str, Any] | None:
+        broadcaster_id = getattr(payload.metadata, "source_broadcaster_user_id", None)
         if broadcaster_id is None:
             return None
 
         return {
             "source_broadcaster_id": broadcaster_id,
             "source_broadcaster_login": getattr(
-                message.metadata, "source_broadcaster_user_login", None
+                payload.metadata, "source_broadcaster_user_login", None
             ),
         }
 
