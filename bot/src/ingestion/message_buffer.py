@@ -243,6 +243,7 @@ class MessageBuffer:
         embeddings = await self._embedding_service.get_embeddings_batch(
             [message.content for message in batch]
         )
+
         events = [
             StreamEvent.from_twitch_message(message, embedding)
             for message, embedding in zip(batch, embeddings, strict=True)
