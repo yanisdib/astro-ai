@@ -10,7 +10,6 @@ from ingestion.message_buffer import MessageBuffer
 
 from models.twitch_message import TwitchMessage
 from models.twitch_user import TwitchUser
-from models.twitch_badge import TwitchBadge
 
 from utils.decorators import retry
 
@@ -71,20 +70,7 @@ class TwitchChatListener(commands.Bot):
         if not message.metadata:
             return
 
-        badges = message.chatter.badges
-        author = TwitchUser(
-            id=message.chatter.id,
-            username=message.chatter.name or message.chatter.id,
-            is_astro=message.chatter.id == settings.TWITCH_BOT_ID,
-            is_bot=TwitchBadge.BOT in badges,
-            is_mod=message.chatter.moderator,
-            is_broadcaster=message.chatter.broadcaster,
-            is_verified=TwitchBadge.VERIFIED in badges,
-            is_partner=TwitchBadge.PARTNER in badges,
-            is_affiliate=TwitchBadge.AFFILIATE in badges,
-            is_subscriber=TwitchBadge.SUBSCRIBER in badges,
-            with_prime=TwitchBadge.PRIME in badges,
-        )
+        author = TwitchUser.from_chatter(message.chatter, settings.TWITCH_BOT_ID)
 
         new_message = TwitchMessage(
             id=message.metadata.message_id,
