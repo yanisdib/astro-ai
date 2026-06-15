@@ -462,3 +462,7 @@ redis.conf
 
 # Claude
 agent-memory/
+
+# Others
+astrobot.jpg
+ROADMAP.md

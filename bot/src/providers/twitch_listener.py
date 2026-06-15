@@ -25,12 +25,11 @@ class TwitchChatListener(commands.Bot):
             message_buffer: Buffer used to accumulate incoming chat messages
                 before flushing them to the ingestion pipeline.
         """
-        # TODO: Current account is Mako AI. It should be a new account for the Bot.
         super().__init__(
             client_id=settings.TWITCH_CLIENT_ID,
             client_secret=settings.TWITCH_CLIENT_SECRET,
             bot_id=settings.TWITCH_BOT_ID,
-            prefix=settings.TWITCH_COMMAND_PREFIX,
+            prefix="!",
         )
         self._message_buffer = message_buffer
         self._can_listen = False
@@ -107,7 +106,7 @@ class TwitchChatListener(commands.Bot):
             ``True`` if the message starts with ``COMMAND_PREFIX`` (``!``) and the term `astro`,
             ``False`` otherwise.
         """
-        return text.startswith(settings.TWITCH_COMMAND_PREFIX + "astro")
+        return text.startswith(settings.BOT_COMMAND + "astro")
 
     @retry(retry_on=(HTTPException, ClientConnectionError))
     async def _is_live(self) -> bool:

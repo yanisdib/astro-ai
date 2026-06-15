@@ -39,7 +39,7 @@ class Config:
     BATCH_SIZE = int(os.getenv("BATCH_SIZE", 10))  # Limit of messages by batch
     FLUSH_INTERVAL = int(os.getenv("FLUSH_INTERVAL", 60))  # Interval between flush
     # Bot configuration
-    TWITCH_COMMAND_PREFIX = "!"
+    BOT_COMMAND = "!astro"
     # OpenAI Configuration
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
     EMBEDDING_MODEL: str = os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
