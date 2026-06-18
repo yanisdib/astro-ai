@@ -49,4 +49,5 @@ INSERT_DOCUMENT = """
         %(topics)s,
         %(created_at)s
     )
+    ON CONFLICT (message_id) DO NOTHING
 """

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from enum import Enum
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from models.twitch_user import TwitchUser
 
@@ -72,3 +73,37 @@ class StreamEvent:
             author=message.author,
             semantics=EventSemantics(embedding=embedding),
         )
+
+    def to_document_row(self) -> dict[str, Any]:
+        """Map this event to flat bind parameters for the documents table INSERT."""
+        return {
+            "message_id": self.message_id,
+            "message_content": self.content,
+            "shared_stream": self.is_shared,
+            "channel_id": self.channel_id,
+            "source": self.source.value,
+            "user_id": self.author.id,
+            "username": self.author.username,
+            "is_astro": self.author.is_astro,
+            "is_bot": self.author.is_bot,
+            "is_mod": self.author.is_mod,
+            "is_broadcaster": self.author.is_broadcaster,
+            "is_verified": self.author.is_verified,
+            "is_partner": self.author.is_partner,
+            "is_affiliate": self.author.is_affiliate,
+            "is_subscriber": self.author.is_subscriber,
+            "with_prime": self.author.with_prime,
+            "subscriber_tier": (
+                self.author.subscriber_tier.value
+                if self.author.subscriber_tier
+                else None
+            ),
+            "embedding": self.semantics.embedding,
+            "intent_category": (
+                self.semantics.intent_category.value
+                if self.semantics.intent_category
+                else None
+            ),
+            "topics": self.semantics.topics,
+            "created_at": datetime.fromtimestamp(self.created_at, tz=UTC),
+        }
