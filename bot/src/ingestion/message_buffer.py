@@ -258,13 +258,23 @@ class MessageBuffer:
     @retry(retry_on=(OperationalError, SerializationFailure))
     async def _store_embeddings(self, events: list[StreamEvent]) -> None:
         documents = [event.to_document_row() for event in events]
+        inserted = 0
 
         async with pool.connection() as conn:
             async with conn.cursor() as crs:
-                await crs.executemany(INSERT_DOCUMENT, documents)
+                for doc in documents:
+                    await crs.execute(INSERT_DOCUMENT, doc)
+                    row = await crs.fetchone()
+                    if row and row[1]:
+                        inserted += 1
             await conn.commit()
 
-        logger.info("Successfully stored %d messages into Memory.", len(documents))
+        logger.info(
+            "Stored %d messages into Memory (%d new, %d re-embedded).",
+            len(documents),
+            inserted,
+            len(documents) - inserted,
+        )
 
     async def _persist_entities(self, events: list[StreamEvent]) -> None:
         # TODO: upsert users and channels from each StreamEvent into relational table when created.

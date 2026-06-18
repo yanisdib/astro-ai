@@ -303,3 +303,12 @@ USING hnsw (embedding vector_cosine_ops);
 CREATE INDEX IF NOT EXISTS idx_documents_topics
 ON documents
 USING GIN (topics);
+-- documents (channel_id)
+CREATE INDEX idx_documents_channel_id   ON documents (channel_id);
+
+-- documents (created_at)
+CREATE INDEX idx_documents_created_at   ON documents (created_at DESC);
+
+-- documents (source)
+CREATE INDEX idx_documents_source       ON documents (source);
+

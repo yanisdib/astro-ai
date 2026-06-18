@@ -25,7 +25,7 @@ INSERT_DOCUMENT = """
         embedding,
         intent_category,
         topics,
-        created_at
+        created_at  -- platform event time; intentionally overrides the DB default (NOW())
     ) VALUES (
         %(message_id)s,
         %(message_content)s,
@@ -49,5 +49,9 @@ INSERT_DOCUMENT = """
         %(topics)s,
         %(created_at)s
     )
-    ON CONFLICT (message_id) DO NOTHING
+    ON CONFLICT (message_id) DO UPDATE
+        SET embedding        = EXCLUDED.embedding,
+            intent_category  = EXCLUDED.intent_category,
+            topics           = EXCLUDED.topics
+    RETURNING id, (xmax = 0) AS was_inserted
 """
